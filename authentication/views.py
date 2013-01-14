@@ -1,0 +1,83 @@
+# Create your views here.
+from django import forms
+from django.contrib import auth
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render_to_response
+from django.http import HttpResponseRedirect
+
+#define user creation form
+class RegistrationForm(UserCreationForm):
+	first_name = forms.CharField(max_length=30, required=True)
+	last_name = forms.CharField(max_length=30, required=True)
+	email = forms.EmailField(required=True)
+	
+	class Meta:
+		model = User
+		fields = ("username", "first_name", "last_name", "email", "password1", "password2")
+ 
+	def save(self, commit=True):
+		user = super(RegistrationForm, self).save(commit=False)
+		user.email = self.cleaned_data["email"]
+		user.first_name = self.cleaned_data["first_name"]
+		user.last_name = self.cleaned_data["last_name"]
+		if commit:
+			user.save()
+		return user
+
+def register(request):
+	if request.method == 'POST':
+		form = RegistrationForm(request.POST)
+		if form.is_valid():
+			new_user = form.save()
+			#figure out redirect location
+			return HttpResponseRedirect("/login")
+	else:
+		form = RegistrationForm()
+	return render_to_response("register.html", 
+		{'form':form},
+		#scontext_instance=RequestContext(request)
+	)
+
+def login_page(request):
+	username = request.POST.get('username', '')
+	password = request.POST.get('password', '')
+	user = auth.authenticate(username=username, password=password)
+	if user is not None and user.is_active:
+		# Correct password, and the user is marked "active"
+		auth.login(request, user)
+		# Redirect to a success page.
+		return HttpResponseRedirect("/")
+	else:
+		# Show an error page
+		#return HttpResponseRedirect("/login/")
+		return render_to_response('login.html')
+		
+
+def auth_login(request):
+	username = request.POST['username']
+	password = request.POST['password']
+	user = authenticate(username=username, password=password)
+	if user is not None:
+		if user.is_active:
+			next = '/home/'
+			login(request, user)
+			return render_to_response('home.html')
+		else:
+			#return disabled account message
+			next = '/login/'
+			return render_to_response('login.html')
+	else:
+		#return invalid login message
+		next = '/login/'
+		HttpResponse('ERROR: Account Disabled.')
+
+def auth_logout(request):
+	logout(request)
+	return render_to_response('logout.html')
+
+@login_required(login_url='/login/')
+def home(request):
+	return render_to_response('home.html')
